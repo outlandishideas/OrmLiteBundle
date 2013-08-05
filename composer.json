@@ -1,0 +1,20 @@
+{
+    "name": "outlandish/orm-lite-bundle",
+    "description": "Persist large datasets efficiently using Doctrine mapping configuration",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Tamlyn Rhodes",
+            "email": "tamlyn@tamlyn.org"
+        }
+    ],
+    "require": {
+		"doctrine/doctrine-bundle": "~1.2"
+    },
+	"autoload": {
+		"psr-0": {
+			"Outlandish\\OrmLiteBundle\\": ""
+		}
+	},
+	"target-dir": "Outlandish/OrmLiteBundle"
+}

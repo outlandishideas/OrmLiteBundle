@@ -1,0 +1,4 @@
+services:
+    outlandish.ormlite:
+        class: Outlandish\OrmLiteBundle\OrmLite
+        arguments: [@doctrine.orm.entity_manager]
