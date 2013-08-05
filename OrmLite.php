@@ -16,7 +16,7 @@ class OrmLite {
 	/**
 	 * @var Connection
 	 */
-	protected $pdo;
+	protected $conn;
 
 	/**
 	 * @var EntityManager
@@ -35,7 +35,7 @@ class OrmLite {
 	 * @param EntityManager $em
 	 */
 	public function __construct(EntityManager $em) {
-		$this->pdo = $em->getConnection();
+		$this->conn = $em->getConnection();
 		$this->em = $em;
 	}
 
@@ -58,7 +58,11 @@ class OrmLite {
 			$columnNamesString = implode(',', $columnNames);
 			$placeholders = '(' . implode(',', array_fill(0, count($columnNames), '?')) . ')';
 
-			$this->pdo->beginTransaction();
+			$this->conn->beginTransaction();
+
+			//temporarily disable query logging
+			$logger = $this->conn->getConfiguration()->getSQLLogger();
+			$this->conn->getConfiguration()->setSQLLogger();
 
 			//chunk up inserts
 			for ($cursor = 0; $cursor < $dataSize; $cursor += $this->maxInsertSize) {
@@ -77,10 +81,13 @@ class OrmLite {
 				}
 
 				//insert the data
-				$this->pdo->executeQuery($query, $values);
+				$this->conn->executeQuery($query, $values);
 			}
 
-			$this->pdo->commit();
+			//re-enable logging
+			$this->conn->getConfiguration()->setSQLLogger($logger);
+
+			$this->conn->commit();
 		}
 	}
 
@@ -100,9 +107,9 @@ class OrmLite {
 
 			$ids = array();
 			foreach ($entities as $entity) {
-				$ids[] = $this->pdo->quote($entity->$idField);
+				$ids[] = $this->conn->quote($entity->$idField);
 			}
-			$this->pdo->executeQuery("DELETE FROM $tableName WHERE $idCol IN (" . implode(',', $ids) . ")");
+			$this->conn->executeQuery("DELETE FROM $tableName WHERE $idCol IN (" . implode(',', $ids) . ")");
 		}
 	}
 
@@ -128,17 +135,25 @@ class OrmLite {
 			}
 			$updateClause = implode(',', $updaters);
 
-			$this->pdo->beginTransaction();
+			$this->conn->beginTransaction();
+
+			//temporarily disable query logging
+			$logger = $this->conn->getConfiguration()->getSQLLogger();
+			$this->conn->getConfiguration()->setSQLLogger();
 
 			$query = "UPDATE $tableName SET $updateClause WHERE $idCol = ?";
-			$statement = $this->pdo->prepare($query);
+			$statement = $this->conn->prepare($query);
 
 			foreach ($entities as $entity) {
 				$values = array_values(get_object_vars($entity));
 				$values[] = $entity->$idField;
 				$statement->execute($values);
 			}
-			$this->pdo->commit();
+
+			//re-enable logging
+			$this->conn->getConfiguration()->setSQLLogger($logger);
+
+			$this->conn->commit();
 		}
 
 	}
@@ -153,18 +168,17 @@ class OrmLite {
 	public function findBy($className, array $criteria) {
 		$metadata = $this->em->getClassMetadata($className);
 		$tableName = $metadata->getTableName();
-		$columnNames = $metadata->getColumnNames();
 		$sql = "SELECT * FROM $tableName";
 
 		if (count($criteria)) {
 			$clauses = array();
 			foreach ($criteria as $fieldName => $value) {
-				$clauses[] = $columnNames[$fieldName] . ' = :'.$fieldName;
+				$clauses[] = $metadata->fieldMappings[$fieldName]['columnName'] . ' = :'.$fieldName;
 			}
 			$sql .= ' WHERE '.implode(' AND ', $clauses);
 		}
 
-		$stmt = $this->pdo->executeQuery($sql, $criteria);
+		$stmt = $this->conn->executeQuery($sql, $criteria);
 		return $stmt->fetchAll(\PDO::FETCH_CLASS, $className);
 	}
 
